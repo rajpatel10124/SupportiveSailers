@@ -3,11 +3,7 @@ pipeline {
 
     stages {
 
-        stage('Clone Repo') {
-            steps {
-                git 'https://github.com/rajpatel10124/SupportiveSailers.git'
-            }
-        }
+    
 
         stage('Build Docker Image') {
             steps {
