@@ -1,0 +1,48 @@
+name: Production Deployment
+on:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and Push
+        run: |
+          # Use your existing ECR URI here
+          docker build -t 550822830768.dkr.ecr.us-east-1.amazonaws.com/static-web:latest .
+          docker push 550822830768.dkr.ecr.us-east-1.amazonaws.com/static-web:latest
+
+  deploy:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to EC2 via SSH
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ubuntu
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            # Login to ECR inside EC2
+            aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 550822830768.dkr.ecr.us-east-1.amazonaws.com
+            # Clean up old containers
+            docker stop static-site || true
+            docker rm static-site || true
+            # Pull and Run the latest
+            docker pull 550822830768.dkr.ecr.us-east-1.amazonaws.com/static-web:latest
+            docker run -d --name static-site -p 80:80 550822830768.dkr.ecr.us-east-1.amazonaws.com/static-web:latest
